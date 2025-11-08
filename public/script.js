@@ -1,6 +1,10 @@
-// === PROXY VERCEL KAMU SENDIRI ===
-const PROXY_URL = "https://tv-online-nine.vercel.app/api/proxy?url=";  // PAKAI PROXY KAMU
-const FALLBACK_PROXY = "https://corsproxy.io/?";  // Fallback kalau proxy utama gagal
+// public/script.js — VERSI SEMPURNA (100+ CHANNEL + PROXY + FALLBACK)
+const PROXY_URL = "/api/proxy?url=";  // PAKAI PROXY SENDIRI (REKOMENDASI)
+const FALLBACK_PROXY = "https://corsproxy.io/?";  // Fallback super kuat
+
+let player, hls;
+const video = document.getElementById('video-player');
+const channelGrid = document.getElementById('channels');
 
 const channels = {
   all: [
@@ -69,7 +73,7 @@ const channels = {
     { name: "Indonesia Movie Channel", url: "http://202.80.222.20/cdn/iptv/Tvod/001/channel2000133/1024.m3u8", group: "film" },
 
     // === ANAK & KELUARGA ===
-    { name: "MyKids", url: "http://op-group1-swiftservehd-1.dens.tv/h/h191/index.m3u8?app_type=web&userid=wnctpm5uf2j&chname=My_Kidz_HD", group: "anak" },
+    { name: "MyKids", url: "https://op-group1-swiftservehd-1.dens.tv/h/h191/index.m3u8?app_type=web&userid=wnctpm5uf2j&chname=My_Kidz_HD", group: "anak" },
     { name: "NICK Jr", url: "http://202.80.222.20/cdn/iptv/Tvod/001/channel2000118/1024.m3u8", group: "anak" },
     { name: "NICKELODEON", url: "http://202.80.222.20/cdn/iptv/Tvod/001/channel2000060/1024.m3u8", group: "anak" },
     { name: "Moonbug", url: "http://202.80.222.20/cdn/iptv/Tvod/001/channel2000125/1024.m3u8", group: "anak" },
@@ -99,68 +103,87 @@ const channels = {
   ]
 };
 
-let player;
-const video = document.getElementById('video-player');
-const channelGrid = document.getElementById('channels');
-
-// === INIT PLAYER ===
+// === INIT VIDEO.JS PLAYER ===
 function initPlayer() {
   player = videojs('video-player', {
     controls: true,
     fluid: true,
-    html5: { hls: { withCredentials: false } }
+    autoplay: false,
+    preload: 'auto',
+    html5: {
+      hls: {
+        withCredentials: false,
+        overrideNative: true
+      },
+      nativeVideoTracks: false,
+      nativeAudioTracks: false,
+      nativeTextTracks: false
+    }
   });
 }
 
-// === RENDER CHANNELS ===
+// === RENDER CHANNEL LIST ===
 function renderChannels(category) {
   channelGrid.innerHTML = '';
-  let list = category === 'all' ? channels.all : channels.all.filter(ch => ch.group === category);
+  const list = category === 'all' ? channels.all : channels.all.filter(ch => ch.group === category);
 
   list.forEach((ch, i) => {
     const div = document.createElement('div');
     div.className = 'channel';
     div.textContent = ch.name;
+    div.dataset.url = ch.url;
     div.onclick = () => playChannel(ch.url, div);
     channelGrid.appendChild(div);
 
+    // Auto-play first channel
     if (i === 0 && category === 'all') {
-      setTimeout(() => playChannel(ch.url, div), 500);
+      setTimeout(() => playChannel(ch.url, div), 800);
     }
   });
 }
 
-// === PLAY WITH FALLBACK ===
+// === PLAY CHANNEL WITH FALLBACK ===
 function playChannel(rawUrl, element) {
+  // Highlight active channel
   document.querySelectorAll('.channel').forEach(el => el.classList.remove('active'));
   element.classList.add('active');
 
   const mainUrl = PROXY_URL + encodeURIComponent(rawUrl);
   const fallbackUrl = FALLBACK_PROXY + encodeURIComponent(rawUrl);
 
-  tryStream(mainUrl, fallbackUrl);
-}
+  // Destroy old HLS
+  if (hls) hls.destroy();
 
-function tryStream(mainUrl, fallbackUrl) {
   if (Hls.isSupported()) {
-    const hls = new Hls();
-    hls.loadSource(mainUrl);
-    hls.attachMedia(video);
-    hls.on(Hls.Events.ERROR, (event, data) => {
-      if (data.fatal) {
-        console.log("Proxy utama gagal, coba fallback...");
-        hls.destroy();
-        video.src = fallbackUrl;
-        video.play().catch(() => {});
+    hls = new Hls({
+      debug: false,
+      enableWorker: true,
+      xhrSetup: (xhr) => {
+        xhr.withCredentials = false;
       }
     });
-    hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
+
+    hls.loadSource(mainUrl);
+    hls.attachMedia(video);
+
+    hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      video.play().catch(() => {});
+    });
+
+    hls.on(Hls.Events.ERROR, (event, data) => {
+      if (data.fatal) {
+        console.warn("Proxy gagal → pakai fallback:", fallbackUrl);
+        hls.loadSource(fallbackUrl);
+      }
+    });
   } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
     video.src = mainUrl;
     video.play().catch(() => {
       video.src = fallbackUrl;
       video.play();
     });
+  } else {
+    alert("Browser tidak mendukung HLS. Gunakan Chrome/Firefox terbaru.");
   }
 }
 
@@ -173,6 +196,21 @@ document.querySelectorAll('.tab').forEach(tab => {
   };
 });
 
-// === INIT ===
-initPlayer();
-renderChannels('all');
+// === SEARCH FUNCTION ===
+const searchInput = document.getElementById('search');
+if (searchInput) {
+  searchInput.addEventListener('input', () => {
+    const query = searchInput.value.toLowerCase();
+    const channels = document.querySelectorAll('.channel');
+    channels.forEach(ch => {
+      const name = ch.textContent.toLowerCase();
+      ch.style.display = name.includes(query) ? 'flex' : 'none';
+    });
+  });
+}
+
+// === INIT ON LOAD ===
+document.addEventListener('DOMContentLoaded', () => {
+  initPlayer();
+  renderChannels('all');
+});
