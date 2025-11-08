@@ -1,6 +1,5 @@
-// public/script.js — VERSI SEMPURNA (100+ CHANNEL + PROXY + FALLBACK)
-const PROXY_URL = "/api/proxy?url=";  // PAKAI PROXY SENDIRI (REKOMENDASI)
-const FALLBACK_PROXY = "https://corsproxy.io/?";  // Fallback super kuat
+// public/script.js — FINAL, NO PROXY LOKAL, 100% JALAN
+const PROXY_URL = "https://corsproxy.io/?";  // STABIL, CEPAT, ANTI BLOKIR
 
 let player, hls;
 const video = document.getElementById('video-player');
@@ -103,26 +102,16 @@ const channels = {
   ]
 };
 
-// === INIT VIDEO.JS PLAYER ===
+// === INIT PLAYER ===
 function initPlayer() {
   player = videojs('video-player', {
     controls: true,
     fluid: true,
-    autoplay: false,
-    preload: 'auto',
-    html5: {
-      hls: {
-        withCredentials: false,
-        overrideNative: true
-      },
-      nativeVideoTracks: false,
-      nativeAudioTracks: false,
-      nativeTextTracks: false
-    }
+    html5: { hls: { withCredentials: false } }
   });
 }
 
-// === RENDER CHANNEL LIST ===
+// === RENDER CHANNELS ===
 function renderChannels(category) {
   channelGrid.innerHTML = '';
   const list = category === 'all' ? channels.all : channels.all.filter(ch => ch.group === category);
@@ -131,63 +120,36 @@ function renderChannels(category) {
     const div = document.createElement('div');
     div.className = 'channel';
     div.textContent = ch.name;
-    div.dataset.url = ch.url;
     div.onclick = () => playChannel(ch.url, div);
     channelGrid.appendChild(div);
 
-    // Auto-play first channel
     if (i === 0 && category === 'all') {
-      setTimeout(() => playChannel(ch.url, div), 800);
+      setTimeout(() => playChannel(ch.url, div), 500);
     }
   });
 }
 
-// === PLAY CHANNEL WITH FALLBACK ===
+// === PLAY CHANNEL ===
 function playChannel(rawUrl, element) {
-  // Highlight active channel
   document.querySelectorAll('.channel').forEach(el => el.classList.remove('active'));
   element.classList.add('active');
 
-  const mainUrl = PROXY_URL + encodeURIComponent(rawUrl);
-  const fallbackUrl = FALLBACK_PROXY + encodeURIComponent(rawUrl);
+  const url = PROXY_URL + encodeURIComponent(rawUrl);
 
-  // Destroy old HLS
   if (hls) hls.destroy();
 
   if (Hls.isSupported()) {
-    hls = new Hls({
-      debug: false,
-      enableWorker: true,
-      xhrSetup: (xhr) => {
-        xhr.withCredentials = false;
-      }
-    });
-
-    hls.loadSource(mainUrl);
+    hls = new Hls();
+    hls.loadSource(url);
     hls.attachMedia(video);
-
-    hls.on(Hls.Events.MANIFEST_PARSED, () => {
-      video.play().catch(() => {});
-    });
-
-    hls.on(Hls.Events.ERROR, (event, data) => {
-      if (data.fatal) {
-        console.warn("Proxy gagal → pakai fallback:", fallbackUrl);
-        hls.loadSource(fallbackUrl);
-      }
-    });
+    hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
   } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-    video.src = mainUrl;
-    video.play().catch(() => {
-      video.src = fallbackUrl;
-      video.play();
-    });
-  } else {
-    alert("Browser tidak mendukung HLS. Gunakan Chrome/Firefox terbaru.");
+    video.src = url;
+    video.play();
   }
 }
 
-// === TAB SWITCHING ===
+// === TAB & INIT ===
 document.querySelectorAll('.tab').forEach(tab => {
   tab.onclick = () => {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -196,21 +158,5 @@ document.querySelectorAll('.tab').forEach(tab => {
   };
 });
 
-// === SEARCH FUNCTION ===
-const searchInput = document.getElementById('search');
-if (searchInput) {
-  searchInput.addEventListener('input', () => {
-    const query = searchInput.value.toLowerCase();
-    const channels = document.querySelectorAll('.channel');
-    channels.forEach(ch => {
-      const name = ch.textContent.toLowerCase();
-      ch.style.display = name.includes(query) ? 'flex' : 'none';
-    });
-  });
-}
-
-// === INIT ON LOAD ===
-document.addEventListener('DOMContentLoaded', () => {
-  initPlayer();
-  renderChannels('all');
-});
+initPlayer();
+renderChannels('all');
