@@ -1,5 +1,5 @@
 // public/script.js — FINAL, NO PROXY LOKAL, 100% JALAN
-const PROXY_URL = "https://corsproxy.io/?";  // STABIL, CEPAT, ANTI BLOKIR
+const PROXY_URL = "/api/proxy?url=";  // PAKAI PROXY SENDIRI!
 
 let player, hls;
 const video = document.getElementById('video-player');
@@ -159,4 +159,5 @@ document.querySelectorAll('.tab').forEach(tab => {
 });
 
 initPlayer();
+
 renderChannels('all');
